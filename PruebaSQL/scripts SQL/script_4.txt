@@ -1,0 +1,88 @@
+SHOW TRIGGERS;
+
+-- TRIGGER 1
+
+-- ANTES
+
+SELECT loan_id, user_id, book_id, loan_date, return_date, loan_status
+FROM loans
+WHERE loan_status = 'Overdue';
+
+SELECT loan_id, user_id, book_id, loan_date, return_date, loan_status
+FROM loans
+WHERE loan_status = 'Pending';
+
+SELECT loan_id, user_id, book_id, loan_date, return_date, loan_status
+FROM loans
+WHERE loan_status = 'Returned';
+
+
+-- DESPÚES
+
+DELIMITER //
+
+CREATE TRIGGER update_loan_status_to_overdue
+AFTER UPDATE ON loans
+FOR EACH ROW
+BEGIN
+    -- Verifica si el préstamo no ha sido devuelto y si la fecha actual es posterior a la fecha límite
+    IF NEW.return_date IS NULL AND NEW.loan_status != 'Overdue' AND CURDATE() > NEW.loan_date + INTERVAL 1 MONTH THEN
+        UPDATE loans
+        SET loan_status = 'Overdue'
+        WHERE loan_id = NEW.loan_id;
+    END IF;
+END //
+
+DELIMITER ;
+
+SELECT loan_id, user_id, book_id, loan_date, return_date, loan_status
+FROM loans
+WHERE loan_status = 'Overdue';
+
+SELECT loan_id, user_id, book_id, loan_date, return_date, loan_status
+FROM loans
+WHERE loan_status = 'Pending';
+
+SELECT loan_id, user_id, book_id, loan_date, return_date, loan_status
+FROM loans
+WHERE loan_status = 'Returned';
+
+
+
+
+-- TRIGGER 2
+
+DELIMITER //
+
+CREATE TRIGGER after_loan_status_update
+AFTER UPDATE ON loans
+FOR EACH ROW
+BEGIN
+    -- Verificar si el estado fue modificado
+    IF OLD.loan_status <> NEW.loan_status THEN
+        INSERT INTO loan_audit (loan_id, old_status, new_status)
+        VALUES (NEW.loan_id, OLD.loan_status, NEW.loan_status);
+    END IF;
+END//
+
+DELIMITER ;
+
+-- TEST PARA EL TRIGGER 2
+
+-- ANTES
+
+SELECT * FROM loan_audit;
+
+UPDATE loans
+SET loan_status = 'Overdue'
+WHERE loan_id = 1 AND loan_status = 'Returned';
+
+-- actualizar manualmente un estado para comprobar funcionamiento de la auditoría
+
+UPDATE loans
+SET loan_status = 'Returned'
+WHERE loan_id = 1 AND loan_status = 'Overdue';
+
+-- DESPUÉS
+
+SELECT * FROM loan_audit;

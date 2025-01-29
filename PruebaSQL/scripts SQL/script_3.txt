@@ -1,0 +1,84 @@
+-- Listar los 5 libros más prestados en los últimos 6 meses, junto con sus géneros y autores.
+
+SELECT MIN(loan_date), MAX(loan_date) FROM loans;
+
+SELECT 
+    b.book_title,
+    a.author_name,
+    g.genre_name,
+    COUNT(l.loan_id) AS total_loans
+FROM loans l
+JOIN books b ON l.book_id = b.book_id
+JOIN authors a ON b.author_id = a.author_id
+JOIN genres g ON b.genre_id = g.genre_id
+WHERE l.loan_date >= '2023-06-27' 
+GROUP BY b.book_id, b.book_title, a.author_name, g.genre_name
+ORDER BY total_loans DESC
+LIMIT 5;
+
+
+
+-- Obtener el total de préstamos activos por usuario, ordenado por cantidad en forma descendente.
+
+SELECT 
+    u.user_id,
+    u.user_name,
+    COUNT(l.loan_id) AS total_active_loans
+FROM loans l
+JOIN users u ON l.user_id = u.user_id
+WHERE l.loan_status IN ('Pending')  -- Solo préstamos activos
+GROUP BY u.user_id, u.user_name
+ORDER BY total_active_loans DESC;  -- Orden descendente por cantidad de préstamos
+
+
+-- Mostrar los usuarios con más de 3 préstamos retrasados, incluyendo su nombre y el total de retrasos.
+
+
+SELECT 
+    u.user_id,
+    u.user_name,
+    COUNT(l.loan_id) AS total_overdue_loans
+FROM loans l
+JOIN users u ON l.user_id = u.user_id
+WHERE l.loan_status = 'Overdue'  -- Solo préstamos retrasados
+GROUP BY u.user_id, u.user_name
+HAVING COUNT(l.loan_id) < 3 -- Usuarios con más de 3 préstamos retrasados
+ORDER BY total_overdue_loans DESC;  -- Orden descendente por cantidad de retrasos
+
+
+-- Listar los géneros más populares (basado en la cantidad de préstamos), ordenados de mayor a menor.
+
+SELECT 
+    g.genre_name,
+    COUNT(l.loan_id) AS total_loans
+FROM loans l
+JOIN books b ON l.book_id = b.book_id
+JOIN genres g ON b.genre_id = g.genre_id
+GROUP BY g.genre_name
+ORDER BY total_loans DESC;  -- Ordenar de mayor a menor según la cantidad de préstamos
+
+-- Calcular la cantidad promedio de días de retraso en devoluciones por usuario. (con esta consulta si el retraso de días sale en negativo es porque las fechas estaban al contrario)
+
+SELECT 
+    u.user_name,
+    AVG(DATEDIFF(l.return_date, l.loan_date)) AS avg_delay_days
+FROM loans l
+JOIN users u ON l.user_id = u.user_id
+WHERE l.loan_status = 'Overdue'  -- Solo consideramos los préstamos retrasados
+AND l.return_date IS NOT NULL  -- Aseguramos que haya una fecha de devolución
+GROUP BY u.user_name
+ORDER BY avg_delay_days DESC;
+
+-- Generar un informe que muestre, por mes, la cantidad de préstamos realizados y cuántos fueron devueltos a tiempo.
+
+SELECT 
+    YEAR(l.loan_date) AS year,
+    MONTH(l.loan_date) AS month,
+    COUNT(l.loan_id) AS total_loans,  -- Total de préstamos realizados
+    SUM(CASE 
+            WHEN l.loan_status = 'Returned' AND l.return_date <= l.loan_date THEN 1 
+            ELSE 0 
+        END) AS on_time_returns  -- Préstamos devueltos a tiempo
+FROM loans l
+GROUP BY YEAR(l.loan_date), MONTH(l.loan_date)
+ORDER BY YEAR(l.loan_date) DESC, MONTH(l.loan_date) DESC;
